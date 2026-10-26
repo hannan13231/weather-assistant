@@ -1,0 +1,18 @@
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Local environment and logs
+.env
+.env.*
+*.log
+npm-debug.log*
+
+# Operating system files
+.DS_Store
+Thumbs.db

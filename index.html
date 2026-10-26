@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Weather Assistant - map based weather forecasting powered by Open-Meteo" />
+  <title>Weather Assistant</title>
+
+  <link rel="preconnect" href="https://api.open-meteo.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+  <div class="aurora" aria-hidden="true">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <span class="blob blob-3"></span>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">◈</span>
+      <div>
+        <h1>Weather Assistant</h1>
+        <p class="brand-sub">Map based forecasting · Open-Meteo</p>
+      </div>
+    </div>
+
+    <form class="search" id="search-form" role="search" autocomplete="off">
+      <label class="sr-only" for="search-input">Search for a city</label>
+      <input id="search-input" type="search" name="q" placeholder="Search a city, e.g. Bengaluru"
+        aria-describedby="search-hint" maxlength="80" />
+      <button type="submit" class="btn btn-primary">Search</button>
+      <button type="button" class="btn btn-ghost" id="locate-btn" title="Use my location">
+        <span aria-hidden="true">⌖</span><span class="btn-label">My location</span>
+      </button>
+      <ul class="suggestions" id="suggestions" role="listbox" hidden></ul>
+      <span id="search-hint" class="sr-only">Results appear below as you type.</span>
+    </form>
+
+    <div class="unit-toggle" role="group" aria-label="Temperature units">
+      <button type="button" class="unit-btn is-active" data-unit="celsius">°C</button>
+      <button type="button" class="unit-btn" data-unit="fahrenheit">°F</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel panel-current" aria-live="polite">
+      <div class="skeleton" id="current-skeleton"></div>
+      <article class="current" id="current" hidden>
+        <p class="place" id="place-name">—</p>
+        <p class="local-time" id="local-time">—</p>
+        <div class="current-main">
+          <span class="current-icon" id="current-icon" aria-hidden="true">☀️</span>
+          <div>
+            <p class="current-temp"><span id="current-temp">--</span><span class="deg" id="deg-unit">°C</span></p>
+            <p class="current-desc" id="current-desc">—</p>
+            <p class="current-feels">Feels like <span id="current-feels">--</span></p>
+          </div>
+        </div>
+        <ul class="metrics">
+          <li><span class="metric-label">Humidity</span><span class="metric-value" id="m-humidity">--</span></li>
+          <li><span class="metric-label">Wind</span><span class="metric-value" id="m-wind">--</span></li>
+          <li><span class="metric-label">Precipitation</span><span class="metric-value" id="m-precip">--</span></li>
+          <li><span class="metric-label">Pressure</span><span class="metric-value" id="m-pressure">--</span></li>
+          <li><span class="metric-label">UV index</span><span class="metric-value" id="m-uv">--</span></li>
+          <li><span class="metric-label">Visibility</span><span class="metric-value" id="m-visibility">--</span></li>
+        </ul>
+        <div class="sun-row">
+          <div><span class="metric-label">Sunrise</span><span class="metric-value" id="m-sunrise">--</span></div>
+          <div><span class="metric-label">Sunset</span><span class="metric-value" id="m-sunset">--</span></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel panel-map">
+      <div class="panel-head">
+        <h2>Interactive map</h2>
+        <p class="panel-hint">Click anywhere on the map to forecast that spot</p>
+      </div>
+      <div id="map" role="application" aria-label="Weather map. Click to select a location."></div>
+      <div class="overlay-status" id="overlay-status" role="status" aria-live="polite">
+        <span class="status-dot is-loading" id="overlay-status-dot" aria-hidden="true"></span>
+        <span id="overlay-status-text">Loading radar data…</span>
+        <span class="radar-legend" id="radar-legend" hidden aria-label="Radar intensity from light to heavy rain">
+          <span>Light</span><span class="legend-scale" aria-hidden="true"></span><span>Heavy</span>
+        </span>
+      </div>
+      <div class="map-controls">
+        <div class="layer-group" role="group" aria-label="Weather overlay">
+          <button type="button" class="layer-btn is-active" data-layer="radar">Radar</button>
+          <button type="button" class="layer-btn" data-layer="clouds" disabled>Clouds</button>
+          <button type="button" class="layer-btn" data-layer="none">None</button>
+        </div>
+        <div class="timeline">
+          <button type="button" class="btn btn-ghost" id="play-btn" aria-label="Play radar animation" disabled>▶</button>
+          <input type="range" id="frame-slider" min="0" max="0" value="0" aria-label="Radar time frame" disabled />
+          <span class="frame-time" id="frame-time">--:--</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-hourly">
+      <div class="panel-head">
+        <h2>Next 24 hours</h2>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="hourly-chart" height="140" aria-label="Hourly temperature and precipitation chart"
+          role="img"></canvas>
+      </div>
+      <ul class="hourly-strip" id="hourly-strip"></ul>
+    </section>
+
+    <section class="panel panel-assistant">
+      <div class="assistant-head">
+        <div>
+          <h2>AI assistant</h2>
+          <p id="assistant-context">Waiting for forecast data…</p>
+        </div>
+        <span class="assistant-mark" aria-hidden="true">✦</span>
+      </div>
+      <div class="assistant-tabs" role="tablist" aria-label="Assistant views">
+        <button type="button" class="assistant-tab is-active" id="assistant-tab-ask" role="tab"
+          aria-selected="true" aria-controls="assistant-panel-ask" data-assistant-tab="ask">Ask</button>
+        <button type="button" class="assistant-tab" id="assistant-tab-brief" role="tab"
+          aria-selected="false" aria-controls="assistant-panel-brief" data-assistant-tab="brief">Brief</button>
+      </div>
+      <div id="assistant-panel-ask" role="tabpanel" aria-labelledby="assistant-tab-ask">
+        <div class="assistant-messages" id="assistant-messages" aria-live="polite"></div>
+        <div class="assistant-prompts" aria-label="Suggested questions">
+          <button type="button" data-question="Will I need an umbrella?">Umbrella?</button>
+          <button type="button" data-question="What should I wear?">What to wear</button>
+          <button type="button" data-question="Is it good for outdoor plans?">Outdoor plans</button>
+        </div>
+        <form class="assistant-form" id="assistant-form">
+          <label class="sr-only" for="assistant-input">Ask about this forecast</label>
+          <input id="assistant-input" maxlength="120" placeholder="Ask about this forecast…" disabled />
+          <button type="submit" aria-label="Send question" disabled>↑</button>
+        </form>
+      </div>
+      <div id="assistant-panel-brief" role="tabpanel" aria-labelledby="assistant-tab-brief" hidden>
+        <ul class="assistant-brief" id="assistant-brief"></ul>
+      </div>
+      <p class="assistant-note">Answers use live Open-Meteo forecast data.</p>
+    </section>
+
+    <section class="panel panel-daily">
+      <div class="panel-head">
+        <h2>7-day outlook</h2>
+      </div>
+      <ul class="daily" id="daily"></ul>
+    </section>
+
+    <section class="panel panel-news" aria-live="polite">
+      <div class="panel-head">
+        <div>
+          <h2>Weather news</h2>
+          <p class="news-location" id="news-location">Latest reports near Bengaluru</p>
+        </div>
+        <button type="button" class="news-refresh" id="news-refresh" title="Refresh weather news"
+          aria-label="Refresh weather news">↻</button>
+      </div>
+      <p class="news-state" id="news-state">Loading local weather news…</p>
+      <ul class="news-list" id="news-list"></ul>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="assertive" hidden></div>
+
+  <footer class="footer">
+    <p>Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a> ·
+      Radar by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer">RainViewer</a> ·
+      Map tiles © <a href="https://www.openstreetmap.org/copyright" target="_blank"
+        rel="noopener noreferrer">OpenStreetMap</a></p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+
+</html>
